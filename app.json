@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "masscoms-mobile",
+    "slug": "masscoms-mobile",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.awecreative.masscoms-mobile",
+      "buildNumber": "2"
+    },
+    "android": {
+      "package": "com.awecreative.masscomsmobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Mass Coms to access your microphone for Live PA broadcasts."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Mass Coms to verify your identity before triggering an incident."
+        }
+      ],
+      "expo-notifications"
+    ]
+  }
+}
