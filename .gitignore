@@ -44,3 +44,4 @@ yarn-error.*
 GoogleService-Info.plist
 google-services.json
 google-play-service-account.json
+.env

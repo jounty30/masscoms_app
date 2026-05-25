@@ -1,7 +1,6 @@
 import axios, { type AxiosError } from 'axios';
 import { API_BASE_URL } from '../config/env';
-import { auth } from '../lib/firebase';
-import { clearAuthStorage } from '../auth/storage';
+import { getStoredToken, clearAuthStorage } from '../auth/storage';
 
 let onUnauthorized: (() => void) | null = null;
 
@@ -15,14 +14,9 @@ const client = axios.create({
 });
 
 client.interceptors.request.use(async (config) => {
-  const user = auth.currentUser;
-  if (user) {
-    try {
-      const token = await user.getIdToken();
-      config.headers.Authorization = `Bearer ${token}`;
-    } catch {
-      // no token
-    }
+  const token = await getStoredToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
@@ -30,26 +24,10 @@ client.interceptors.request.use(async (config) => {
 client.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as typeof error.config & { _retry?: boolean };
-
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      const user = auth.currentUser;
-      if (user) {
-        try {
-          const token = await user.getIdToken(true);
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-          }
-          return client(originalRequest);
-        } catch {
-          // refresh failed
-        }
-      }
+    if (error.response?.status === 401) {
       await clearAuthStorage();
       onUnauthorized?.();
     }
-
     return Promise.reject(error);
   }
 );

@@ -3,7 +3,7 @@
  * For EAS: env vars from eas.json (e.g. EXPO_PUBLIC_API_BASE_URL) are injected at build time.
  * For local Xcode: we default to production API URL.
  */
-const PRODUCTION_API = 'https://us-central1-masscoms.cloudfunctions.net/api/v1';
+const PRODUCTION_API = 'https://admin.masscoms.com';
 
 export default {
   expo: {
@@ -22,7 +22,6 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.awecreative.masscoms-mobile',
-      googleServicesFile: './GoogleService-Info.plist',
       infoPlist: {
         NSMicrophoneUsageDescription:
           'Allow Mass Coms to access your microphone for Live PA broadcasts.',
@@ -30,7 +29,6 @@ export default {
     },
     android: {
       package: 'com.awecreative.masscomsmobile',
-      googleServicesFile: './google-services.json',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',
@@ -67,7 +65,7 @@ export default {
       API_BASE_URL:
         process.env.EXPO_PUBLIC_API_BASE_URL ?? PRODUCTION_API,
       WS_URL:
-        process.env.EXPO_PUBLIC_WS_URL ?? 'wss://us-central1-masscoms.cloudfunctions.net/ws',
+        process.env.EXPO_PUBLIC_WS_URL ?? 'wss://admin.masscoms.com/ws',
     },
   },
 };

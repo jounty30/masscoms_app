@@ -1,5 +1,5 @@
 /**
- * Login with the same credentials as the Mass Coms dashboard (Firebase email/password).
+ * Login with the same credentials as the Mass Coms dashboard.
  */
 import React, { useState } from 'react';
 import {
@@ -40,11 +40,10 @@ export default function LoginScreen() {
       if (__DEV__) console.log('[Login] Success for', email.trim());
     } catch (err: unknown) {
       if (__DEV__) console.warn('[Login] Failed:', err);
-      const code = err && typeof err === 'object' && 'code' in err
-        ? (err as { code?: string }).code : undefined;
-      const msg = err instanceof Error ? err.message : String(err ?? '');
-      const isNetwork = code === 'auth/network-request-failed' ||
-        /network|fetch|connection|-1017/i.test(msg);
+      const axiosErr = err as { code?: string; response?: unknown; message?: string };
+      const isNetwork =
+        axiosErr?.code === 'ERR_NETWORK' ||
+        (!axiosErr?.response && /network|fetch|connection|ECONNREFUSED|ETIMEDOUT|-1017/i.test(axiosErr?.message ?? ''));
       if (__DEV__ && isNetwork) {
         console.warn('[Login] Network error on simulator — using dev fallback login');
         await loginAsDev(email.trim());

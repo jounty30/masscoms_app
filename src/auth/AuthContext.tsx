@@ -1,14 +1,10 @@
-/**
- * Auth backed by the same Firebase as the Mass Coms dashboard.
- * Email/password login; user and orgId from Firebase Auth + custom claims.
- * Biometric verification required for all logins and when app returns from background.
- */
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import Constants from 'expo-constants';
 import { AppState, type AppStateStatus } from 'react-native';
 import type { User, UserRole } from '../types/api';
-import { signIn as firebaseSignIn, signOut as firebaseSignOut, subscribeToAuth } from '../lib/firebaseAuth';
-import { clearAuthStorage } from './storage';
+import { login as apiLogin, logout as apiLogout, getMe } from '../api/auth';
+import { getStoredToken, clearAuthStorage } from './storage';
+import { setUnauthorizedHandler } from '../api/client';
 import { registerForPushNotifications, unregisterPush } from '../api/notifications';
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
@@ -27,15 +23,25 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function toUser(fb: { id: string; email: string; name: string; role: UserRole; orgId: string }): User {
+function toUser(data: unknown): User {
+  if (!data || typeof data !== 'object') {
+    throw new Error('Unexpected login response shape: ' + JSON.stringify(data));
+  }
+  const d = data as Record<string, unknown>;
+  if (!d.id) {
+    console.error('[auth] toUser received unexpected shape:', JSON.stringify(data));
+    throw new Error('Unexpected login response shape: ' + JSON.stringify(data));
+  }
+  const orgId = ((d.orgId ?? d.organizationCode ?? d.organization ?? '') as string);
+  const name = ((d.name ?? d.displayName ?? (d.email as string | undefined)?.split('@')[0] ?? '') as string);
   return {
-    id: fb.id,
-    name: fb.name,
-    email: fb.email,
-    role: fb.role,
-    organization: fb.orgId,
-    organizationCode: fb.orgId,
-    orgId: fb.orgId,
+    id: d.id as string,
+    name,
+    email: d.email as string,
+    role: d.role as UserRole,
+    organization: ((d.organization ?? orgId) as string),
+    organizationCode: ((d.organizationCode ?? orgId) as string),
+    orgId,
   };
 }
 
@@ -46,24 +52,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const lastActivityRef = useRef(Date.now());
   const isDevFallbackRef = useRef(false);
 
+  // Restore session from stored token on launch
   useEffect(() => {
-    const unsubscribe = subscribeToAuth((fbUser) => {
-      if (!fbUser && isDevFallbackRef.current) {
+    let cancelled = false;
+    (async () => {
+      const token = await getStoredToken();
+      if (!token) {
         setIsLoading(false);
         return;
       }
-      setUser(fbUser ? toUser(fbUser) : null);
-      setBiometricUnlocked(false);
-      setIsLoading(false);
-    });
-    return () => unsubscribe();
+      try {
+        const me = await getMe();
+        if (!cancelled) {
+          setUser(toUser(me));
+          setBiometricUnlocked(false);
+        }
+      } catch {
+        await clearAuthStorage();
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
+  // Force logout when server returns 401
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setUser(null);
+      setBiometricUnlocked(false);
+    });
+  }, []);
+
+  // Only reset on background — inactive is used by Face ID dialog
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
-      // Only reset on background - NOT inactive. Face ID dialog puts app in "inactive",
-      // which would unmount screens mid-flow (e.g. during trigger). We only want to
-      // re-lock when the user actually leaves the app.
       if (nextState === 'background') {
         setBiometricUnlocked(false);
       }
@@ -78,17 +101,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await unregisterPush();
-    await firebaseSignOut();
-    await clearAuthStorage();
+    await apiLogout();
     setUser(null);
+    setBiometricUnlocked(false);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const fbUser = await firebaseSignIn(email, password);
-      isDevFallbackRef.current = fbUser.id === 'dev-simulator-user';
-      setUser(toUser(fbUser));
+      const { user: apiUser } = await apiLogin(email, password);
+      isDevFallbackRef.current = false;
+      setUser(toUser(apiUser));
     } finally {
       setIsLoading(false);
     }
@@ -106,28 +129,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const unlockWithBiometrics = useCallback(() => {
-    setBiometricUnlocked(true);
-  }, []);
+  const unlockWithBiometrics = useCallback(() => setBiometricUnlocked(true), []);
 
   const refreshSessionActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
   }, []);
 
   useEffect(() => {
-    if (!user) return;
-    const interval = setInterval(() => {
+    if (!user || isDevFallbackRef.current) return;
+    const interval = setInterval(async () => {
       if (Date.now() - lastActivityRef.current > SESSION_TIMEOUT_MS) {
-        unregisterPush().catch(() => {});
-        clearAuthStorage();
-        firebaseSignOut();
+        await unregisterPush().catch(() => {});
+        await apiLogout();
         setUser(null);
       }
     }, 60000);
     return () => clearInterval(interval);
   }, [user]);
 
-  // Skip biometrics only on simulator/emulator. Real devices always require auth, even in dev builds.
   const skipBiometrics = !Constants.isDevice || process.env.EXPO_PUBLIC_SKIP_BIOMETRICS === '1';
   const value: AuthContextValue = {
     user,

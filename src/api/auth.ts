@@ -1,36 +1,38 @@
 import client from './client';
-import type { User, LoginResponse, VerifyOtpResponse } from '../types/api';
-import { setStoredToken, setStoredRefreshToken, setStoredUser, clearAuthStorage } from '../auth/storage';
+import type { User } from '../types/api';
+import { setStoredToken, clearAuthStorage } from '../auth/storage';
+import { API_BASE_URL } from '../config/env';
 
-export async function requestOtp(identifier: string, organizationCode?: string): Promise<LoginResponse> {
-  const { data } = await client.post<LoginResponse>('/auth/login', {
-    identifier,
-    ...(organizationCode && { organizationCode }),
-  });
-  return data;
+export async function login(email: string, password: string): Promise<{ user: User }> {
+  console.log('[auth] POST', `${API_BASE_URL}/v1/auth/login`);
+  const response = await client.post<{
+    accessToken: string;
+    refreshToken: string;
+    orgId: string;
+    role: string;
+    orgs: { orgId: string; name: string; role: string }[];
+  }>('/v1/auth/login', { email, password });
+  console.log('[auth] raw response:', JSON.stringify(response.data));
+  const data = response.data;
+  if (!data?.accessToken) {
+    console.error('[auth] unexpected login response:', JSON.stringify(data));
+    throw new Error('Unexpected login response shape: ' + JSON.stringify(data));
+  }
+  await setStoredToken(data.accessToken);
+  const user = await getMe();
+  return { user };
 }
 
-export async function verifyOtp(identifier: string, otp: string): Promise<VerifyOtpResponse> {
-  const { data } = await client.post<VerifyOtpResponse>('/auth/verify-otp', {
-    identifier,
-    otp,
-  });
-  await setStoredToken(data.token);
-  await setStoredRefreshToken(data.refreshToken);
-  await setStoredUser(data.user);
-  return data;
-}
-
-export async function getCurrentUser(): Promise<User> {
-  const { data } = await client.get<User>('/auth/user');
+export async function getMe(): Promise<User> {
+  const { data } = await client.get<User>('/v1/users/me');
   return data;
 }
 
 export async function logout(): Promise<void> {
   try {
-    await client.post('/auth/logout');
+    await client.delete('/v1/auth/logout');
   } catch {
-    // ignore
+    // best effort
   }
   await clearAuthStorage();
 }

@@ -3,7 +3,7 @@ import type { Incident, IncidentStats, Acknowledgment, HelpRequest } from '../ty
 
 export async function getActiveIncident(): Promise<Incident | null> {
   try {
-    const res = await client.get<Incident>('/incidents/active');
+    const res = await client.get<Incident>('/v1/incidents/active');
     if (res.status === 204 || !res.data) return null;
     return res.data;
   } catch (err: unknown) {
@@ -16,7 +16,7 @@ export async function getActiveIncident(): Promise<Incident | null> {
 }
 
 export async function getIncident(id: string): Promise<Incident> {
-  const { data } = await client.get<Incident>(`/incidents/${id}`);
+  const { data } = await client.get<Incident>(`/v1/incidents/${id}`);
   return data;
 }
 
@@ -31,11 +31,11 @@ export async function acknowledgeIncident(
     checkpointName?: string;
   }
 ): Promise<void> {
-  await client.post(`/incidents/${incidentId}/acknowledge`, payload);
+  await client.post(`/v1/incidents/${incidentId}/acknowledge`, payload);
 }
 
 export async function undoAcknowledgeIncident(incidentId: string): Promise<void> {
-  await client.delete(`/incidents/${incidentId}/acknowledge`);
+  await client.delete(`/v1/incidents/${incidentId}/acknowledge`);
 }
 
 export async function createHelpRequest(
@@ -48,7 +48,7 @@ export async function createHelpRequest(
     longitude?: number;
   }
 ): Promise<void> {
-  await client.post(`/incidents/${incidentId}/help-request`, payload);
+  await client.post(`/v1/incidents/${incidentId}/help-request`, payload);
 }
 
 export async function triggerIncident(payload: {
@@ -58,25 +58,25 @@ export async function triggerIncident(payload: {
   assemblyPointId?: string;
   lockdownPin?: string;
 }): Promise<Incident> {
-  const { data } = await client.post<Incident>('/incidents/trigger', payload);
+  const { data } = await client.post<Incident>('/v1/incidents/trigger', payload);
   return data;
 }
 
 export async function resolveIncident(incidentId: string): Promise<void> {
-  await client.post(`/incidents/${incidentId}/resolve`);
+  await client.post(`/v1/incidents/${incidentId}/resolve`);
 }
 
 export async function getIncidentStats(incidentId: string): Promise<IncidentStats> {
-  const { data } = await client.get<IncidentStats>(`/incidents/${incidentId}/stats`);
+  const { data } = await client.get<IncidentStats>(`/v1/incidents/${incidentId}/stats`);
   return data;
 }
 
 export async function getIncidentAcknowledgments(incidentId: string): Promise<Acknowledgment[]> {
-  const { data } = await client.get<Acknowledgment[]>(`/incidents/${incidentId}/acknowledgments`);
+  const { data } = await client.get<Acknowledgment[]>(`/v1/incidents/${incidentId}/acknowledgments`);
   return data;
 }
 
 export async function getIncidentHelpRequests(incidentId: string): Promise<HelpRequest[]> {
-  const { data } = await client.get<HelpRequest[]>(`/incidents/${incidentId}/help-requests`);
+  const { data } = await client.get<HelpRequest[]>(`/v1/incidents/${incidentId}/help-requests`);
   return data;
 }

@@ -13,7 +13,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
   if (final !== 'granted') return null;
   const token = (await Notifications.getExpoPushTokenAsync()).data;
   if (!token) return null;
-  await client.post('/notifications/register', {
+  await client.post('/v1/notifications/register', {
     deviceToken: token,
     platform: Platform.OS,
   });
@@ -22,7 +22,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
 
 export async function unregisterPush(): Promise<void> {
   try {
-    await client.delete('/notifications/unregister');
+    await client.delete('/v1/notifications/unregister');
   } catch {
     // ignore
   }
