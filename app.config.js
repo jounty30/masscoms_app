@@ -22,6 +22,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.awecreative.masscoms-mobile',
+      buildNumber: '1',
       infoPlist: {
         NSMicrophoneUsageDescription:
           'Allow Mass Coms to access your microphone for Live PA broadcasts.',
@@ -29,6 +30,7 @@ export default {
     },
     android: {
       package: 'com.awecreative.masscomsmobile',
+      versionCode: 1,
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',

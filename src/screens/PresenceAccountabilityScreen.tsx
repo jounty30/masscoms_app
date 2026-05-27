@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Pressable, Platform } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../auth/AuthContext';
 import { useWebSocket } from '../ws/WebSocketContext';
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 16,
     textAlign: 'left',
-    textAlignVertical: 'center',
+    ...(Platform.OS === 'android' && { textAlignVertical: 'center' }),
   },
   filterRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   filterChip: {

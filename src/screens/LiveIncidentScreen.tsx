@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   TextInput,
   Modal,
+  Platform,
   Pressable,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -28,6 +29,10 @@ import { colors } from '../theme';
 const INCIDENT_COLORS: Record<string, string> = {
   lockdown: colors.lockdown,
   evacuation: colors.evacuation,
+  evacuate: colors.evacuation,
+  invacuate: '#d97706',
+  standby: colors.primary,
+  test: '#64748b',
   fire: colors.fire,
   medical: colors.medical,
 };
@@ -53,6 +58,31 @@ const RESPONSE_PLANS: Record<string, string[]> = {
     'Use the nearest safe exit – do not use lifts',
     'Go to the assembly point and stay there',
     'Wait for roll call and further instructions',
+  ],
+  evacuate: [
+    'Leave belongings behind',
+    'Use the nearest safe exit – do not use lifts',
+    'Go to the assembly point and stay there',
+    'Wait for roll call and further instructions',
+  ],
+  invacuate: [
+    'Stay inside – do not go outside',
+    'Move away from windows and exterior walls',
+    'Close all windows, doors, and vents to reduce exposure',
+    'Silence mobile devices and await further instructions',
+    'Do not leave until All Clear is given',
+  ],
+  standby: [
+    'Remain alert and stay in your current location',
+    'Await further instructions from safety officers',
+    'Do not use non-essential equipment or move between areas',
+    'Be ready to act quickly if the situation escalates',
+  ],
+  test: [
+    'This is a test or drill scenario',
+    'Follow all instructions as if it were a live incident',
+    'Proceed to your designated area',
+    'Report to your safety officer when in position',
   ],
   fire: [
     'Activate the nearest fire alarm if not already sounding',
@@ -101,6 +131,7 @@ export default function LiveIncidentScreen() {
     queryFn: () => getIncident(orgId!, id!),
     enabled: !!orgId && !!id,
     refetchInterval: 30000,
+    refetchOnReconnect: false,
   });
 
   const { data: acknowledgments = [] } = useQuery({
@@ -108,6 +139,9 @@ export default function LiveIncidentScreen() {
     queryFn: () => getIncidentAcknowledgments(id!),
     enabled: !!id && !!user?.id,
   });
+
+  const nullGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [selfAcked, setSelfAcked] = useState(false);
   const [acknowledgeError, setAcknowledgeError] = useState<string | null>(null);
@@ -197,12 +231,27 @@ export default function LiveIncidentScreen() {
     }
   }, [incident?.status, navigation]);
 
-  // If incident is gone (resolved on server, getIncident returned null), go home
+  // Grace period: if incident is null after load, retry for up to 10 s before going home.
+  // This prevents a false "System Ready" when the backend hasn't made the incident readable yet.
   useEffect(() => {
     if (!isLoading && !error && incident === null) {
-      navigation.replace('Home');
+      if (!nullGraceTimerRef.current) {
+        retryTimerRef.current = setInterval(() => { refetch(); }, 2000);
+        nullGraceTimerRef.current = setTimeout(() => {
+          if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; }
+          nullGraceTimerRef.current = null;
+          navigation.replace('Home');
+        }, 10000);
+      }
+    } else if (incident) {
+      if (nullGraceTimerRef.current) { clearTimeout(nullGraceTimerRef.current); nullGraceTimerRef.current = null; }
+      if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; }
     }
-  }, [isLoading, error, incident, navigation]);
+    return () => {
+      if (nullGraceTimerRef.current) { clearTimeout(nullGraceTimerRef.current); nullGraceTimerRef.current = null; }
+      if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null; }
+    };
+  }, [isLoading, error, incident, navigation, refetch]);
 
   useEffect(() => {
     const ts = incident?.createdAt ?? incident?.timestamp;
@@ -221,7 +270,7 @@ export default function LiveIncidentScreen() {
     );
   }
 
-  if (isLoading || !incident) {
+  if (isLoading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -229,7 +278,7 @@ export default function LiveIncidentScreen() {
     );
   }
 
-  if (error) {
+  if (error && !incident) {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>Failed to load incident</Text>
@@ -240,8 +289,16 @@ export default function LiveIncidentScreen() {
     );
   }
 
+  if (!incident) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
   const incidentColor = INCIDENT_COLORS[incident.type] ?? colors.primary;
-  const planSteps = RESPONSE_PLANS[incident.type] ?? RESPONSE_PLANS.lockdown;
+  const planSteps = RESPONSE_PLANS[incident.type] ?? RESPONSE_PLANS.standby ?? [];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -501,7 +558,7 @@ export default function LiveIncidentScreen() {
             </TouchableOpacity>
             <Text style={styles.label}>Notes (optional)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, Platform.OS === 'android' && { textAlignVertical: 'top' }]}
               value={helpNotes}
               onChangeText={setHelpNotes}
               placeholder="Additional details..."
@@ -661,7 +718,6 @@ const styles = StyleSheet.create({
     padding: 12,
     color: colors.text,
     minHeight: 80,
-    textAlignVertical: 'top',
   },
   modalOverlay: {
     flex: 1,
