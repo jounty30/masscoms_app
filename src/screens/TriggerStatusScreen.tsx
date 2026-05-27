@@ -82,6 +82,11 @@ export default function TriggerStatusScreen() {
           <ActivityIndicator size="small" color={colors.primary} />
           <Text style={styles.loadingText}>Connecting…</Text>
         </View>
+      ) : data.messageDelivery.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyCardText}>No delivery data yet</Text>
+          <Text style={styles.emptyCardSub}>Delivery status will appear here once notifications have been sent.</Text>
+        </View>
       ) : (
         <>
       <View style={styles.card}>
@@ -150,4 +155,14 @@ const styles = StyleSheet.create({
   timelineRow: { marginBottom: 8 },
   timelineTime: { fontSize: 12, color: colors.textSecondary, marginBottom: 2 },
   timelineAction: { fontSize: 14, color: colors.text },
+  emptyCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  emptyCardText: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 },
+  emptyCardSub: { fontSize: 13, color: colors.textSecondary, textAlign: 'center' },
 });

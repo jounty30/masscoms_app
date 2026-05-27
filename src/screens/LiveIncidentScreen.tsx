@@ -16,7 +16,9 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthContext';
 import { getIncident, resolveIncident } from '../services/incidents';
-import { acknowledgeIncident, createHelpRequest, undoAcknowledgeIncident, getIncidentAcknowledgments } from '../api/incidents';
+import { createHelpRequest, undoAcknowledgeIncident, getIncidentAcknowledgments } from '../api/incidents';
+import { selfAcknowledge } from '../api/presence';
+import { useWebSocket } from '../ws/WebSocketContext';
 import { useEffectiveRole } from '../hooks/useEffectiveRole';
 import { isAdminRole } from '../types/api';
 import { useCheckpoints } from '../lib/useCheckpoints';
@@ -91,12 +93,14 @@ export default function LiveIncidentScreen() {
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<{ id: string; name: string } | null>(null);
   const canIssueAllClear = isAdminRole(effectiveRole ?? 'staff');
 
+  const { lastEvent } = useWebSocket();
   const { checkpoints } = useCheckpoints(orgId);
 
-  const { data: incident, isLoading, error } = useQuery({
+  const { data: incident, isLoading, error, refetch } = useQuery({
     queryKey: ['incident', orgId, id],
     queryFn: () => getIncident(orgId!, id!),
     enabled: !!orgId && !!id,
+    refetchInterval: 30000,
   });
 
   const { data: acknowledgments = [] } = useQuery({
@@ -105,21 +109,23 @@ export default function LiveIncidentScreen() {
     enabled: !!id && !!user?.id,
   });
 
-  const hasAcknowledged = !!user?.id && acknowledgments.some((a) => a.userId === user.id);
+  const [selfAcked, setSelfAcked] = useState(false);
+  const [acknowledgeError, setAcknowledgeError] = useState<string | null>(null);
+  const hasAcknowledged = selfAcked || (!!user?.id && acknowledgments.some((a) => a.userId === user.id));
 
   const acknowledgeMutation = useMutation({
-    mutationFn: () =>
-      acknowledgeIncident(id!, {
-        status: 'safe',
-        checkpointId: selectedCheckpoint?.id,
-        checkpointName: selectedCheckpoint?.name,
-      }),
+    mutationFn: () => selfAcknowledge(id!),
     onSuccess: () => {
+      setSelfAcked(true);
+      setAcknowledgeError(null);
       setShowSafeModal(false);
       setSelectedCheckpoint(null);
       queryClient.invalidateQueries({ queryKey: ['incident', id] });
       queryClient.invalidateQueries({ queryKey: ['incident', id, 'acknowledgments'] });
       queryClient.invalidateQueries({ queryKey: ['presence', 'roster'] });
+    },
+    onError: (err: Error) => {
+      setAcknowledgeError(err?.message ?? 'Could not mark as safe. Please try again.');
     },
   });
 
@@ -177,13 +183,35 @@ export default function LiveIncidentScreen() {
     );
   };
 
+  // Immediate navigation when server signals incident resolved via WebSocket
   useEffect(() => {
-    if (!incident?.timestamp) return;
-    const update = () => setTimeSince(getTimeSince(incident.timestamp));
+    if (lastEvent?.type === 'incident-resolved') {
+      navigation.replace('Home');
+    }
+  }, [lastEvent, navigation]);
+
+  // Navigation via polling: incident resolved or no longer found (404 → null)
+  useEffect(() => {
+    if (incident && incident.status === 'resolved') {
+      navigation.replace('Home');
+    }
+  }, [incident?.status, navigation]);
+
+  // If incident is gone (resolved on server, getIncident returned null), go home
+  useEffect(() => {
+    if (!isLoading && !error && incident === null) {
+      navigation.replace('Home');
+    }
+  }, [isLoading, error, incident, navigation]);
+
+  useEffect(() => {
+    const ts = incident?.createdAt ?? incident?.timestamp;
+    if (!ts) return;
+    const update = () => setTimeSince(getTimeSince(ts));
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [incident?.timestamp]);
+  }, [incident?.createdAt, incident?.timestamp]);
 
   if (!id) {
     return (
@@ -205,6 +233,9 @@ export default function LiveIncidentScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>Failed to load incident</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -246,8 +277,23 @@ export default function LiveIncidentScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Incident Details</Text>
-        <Text style={styles.detail}>Triggered by: {incident.triggeredByName}</Text>
-        <Text style={styles.detail}>{new Date(incident.timestamp).toLocaleString()}</Text>
+        <Text style={styles.detail}>
+          Triggered by: {incident.triggeredByName ?? incident.activatedByName ?? incident.triggeredBy ?? 'Unknown'}
+        </Text>
+        <Text style={styles.detail}>
+          {(() => {
+            const ts = incident.createdAt ?? incident.timestamp;
+            return ts
+              ? new Date(ts).toLocaleString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : 'Unknown';
+          })()}
+        </Text>
         {incident.zone && <Text style={styles.detail}>Zone: {incident.zone}</Text>}
       </View>
 
@@ -268,7 +314,7 @@ export default function LiveIncidentScreen() {
           <>
             <TouchableOpacity
               style={[styles.actionCard, styles.safeAction]}
-              onPress={() => setShowSafeModal(true)}
+              onPress={() => { setAcknowledgeError(null); setShowSafeModal(true); }}
               disabled={acknowledgeMutation.isPending}
             >
               <View style={[styles.actionIconWrap, { backgroundColor: 'rgba(34, 197, 94, 0.2)' }]}>
@@ -280,6 +326,9 @@ export default function LiveIncidentScreen() {
               </View>
               <Text style={styles.actionLabel}>I'm Safe</Text>
             </TouchableOpacity>
+            {acknowledgeError && (
+              <Text style={styles.acknowledgeErrorText}>{acknowledgeError}</Text>
+            )}
 
             <TouchableOpacity
               style={[styles.actionCard, styles.helpAction]}
@@ -489,7 +538,21 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 24, paddingBottom: 48 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
-  errorText: { color: colors.error },
+  errorText: { color: colors.error, marginBottom: 16, fontSize: 15 },
+  retryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+  },
+  retryButtonText: { color: '#fff', fontWeight: '600' },
+  acknowledgeErrorText: {
+    fontSize: 13,
+    color: colors.error,
+    marginTop: -4,
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
   banner: {
     padding: 20,
     marginBottom: 20,

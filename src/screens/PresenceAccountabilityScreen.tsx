@@ -65,7 +65,10 @@ export default function PresenceAccountabilityScreen() {
     }
   }, [effectiveRole, navigation]);
   useEffect(() => {
-    if (lastEvent?.type === 'person-marked-safe') {
+    if (
+      lastEvent?.type === 'person-marked-safe' ||
+      lastEvent?.type === 'acknowledgment-received'
+    ) {
       queryClient.invalidateQueries({ queryKey: ['presence', 'roster'] });
     }
   }, [lastEvent, queryClient]);
@@ -75,10 +78,11 @@ export default function PresenceAccountabilityScreen() {
   const [markReason, setMarkReason] = useState('');
   const [locallyMarkedIds, setLocallyMarkedIds] = useState<Set<string>>(new Set());
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['presence', 'roster', incidentId],
     queryFn: () => getOnSiteRoster(incidentId),
     retry: 1,
+    refetchInterval: 15000,
   });
   const baseRoster = Array.isArray(data) && data.length > 0 ? data : DEMO_ROSTER;
   const roster = baseRoster.map((p) =>
@@ -126,7 +130,7 @@ export default function PresenceAccountabilityScreen() {
   const missingCount = roster.filter((p) => !p.acknowledged).length;
   const pct = roster.length > 0 ? Math.round((accountedCount / roster.length) * 100) : 0;
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -136,6 +140,14 @@ export default function PresenceAccountabilityScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {error && !data && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>Could not load roster data</Text>
+          <TouchableOpacity onPress={() => refetch()} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{accountedCount}</Text>
@@ -329,4 +341,21 @@ const styles = StyleSheet.create({
   primaryButton: { flex: 1, padding: 14, alignItems: 'center', borderRadius: 12, backgroundColor: colors.primary },
   primaryButtonText: { color: '#fff', fontWeight: '600' },
   buttonDisabled: { opacity: 0.6 },
+  errorBanner: {
+    padding: 14,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.error,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  errorBannerText: { color: colors.error, fontSize: 14, marginBottom: 8 },
+  retryButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+  },
+  retryButtonText: { color: '#fff', fontWeight: '600' },
 });

@@ -12,10 +12,9 @@ export async function login(email: string, password: string): Promise<{ user: Us
     role: string;
     orgs: { orgId: string; name: string; role: string }[];
   }>('/v1/auth/login', { email, password });
-  console.log('[auth] raw response:', JSON.stringify(response.data));
   const data = response.data;
   if (!data?.accessToken) {
-    console.error('[auth] unexpected login response:', JSON.stringify(data));
+    console.error('[auth] unexpected login response shape');
     throw new Error('Unexpected login response shape: ' + JSON.stringify(data));
   }
   await setStoredToken(data.accessToken);

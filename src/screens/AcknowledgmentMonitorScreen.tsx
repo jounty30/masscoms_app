@@ -34,10 +34,11 @@ export default function AcknowledgmentMonitorScreen() {
     }
   }, [effectiveRole, navigation]);
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
     queryKey: ['incident', id, 'stats'],
     queryFn: () => getIncidentStats(id!),
     enabled: !!id,
+    refetchInterval: 15000,
   });
   const { data: acknowledgments = [] } = useQuery({
     queryKey: ['incident', id, 'acknowledgments'],
@@ -68,10 +69,21 @@ export default function AcknowledgmentMonitorScreen() {
     );
   }
 
-  if (statsLoading || !stats) {
+  if (statsLoading && !stats) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorText}>Failed to load incident stats</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => refetchStats()}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -200,4 +212,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   resolveButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  retryButton: {
+    marginTop: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+  },
+  retryButtonText: { color: '#fff', fontWeight: '600' },
 });

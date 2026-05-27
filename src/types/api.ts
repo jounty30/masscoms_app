@@ -42,8 +42,11 @@ export interface Incident {
   type: 'lockdown' | 'evacuation' | 'fire' | 'medical';
   title: string;
   timestamp: string;
-  triggeredBy: string;
-  triggeredByName: string;
+  createdAt?: string;       // API may return createdAt instead of timestamp
+  triggeredBy?: string;
+  triggeredByName?: string;
+  activatedBy?: string;     // API alternate field name
+  activatedByName?: string; // API alternate field name
   instructions?: string[];
   isDrill: boolean;
   status: 'active' | 'resolved';

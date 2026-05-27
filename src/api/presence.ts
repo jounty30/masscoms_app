@@ -14,6 +14,14 @@ export async function markPersonSafe(
   await client.post('/v1/presence/mark-safe', { personId, ...payload });
 }
 
+export async function selfAcknowledge(incidentId: string): Promise<void> {
+  const url = '/v1/presence/ack';
+  const body = { incidentId };
+  console.log('[acknowledge] calling:', url, body);
+  const { status, data } = await client.post(url, body);
+  console.log('[acknowledge] response:', status, data);
+}
+
 export async function getPresenceAuditLog(incidentId: string): Promise<{ entries: unknown[] }> {
   const { data } = await client.get<{ entries: unknown[] }>(`/v1/presence/audit-log/${incidentId}`);
   return data;
