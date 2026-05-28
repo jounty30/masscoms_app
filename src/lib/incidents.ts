@@ -37,7 +37,8 @@ function normalizeIncident(raw: Record<string, unknown>): Incident {
     activatedByName: raw.activatedByName as string | undefined,
     isDrill: (raw.isDrill as boolean | undefined) ?? false,
     status: raw.status as 'active' | 'resolved',
-    instructions: (raw.instructions ?? raw.responsePlanSteps) as string[] | undefined,
+    instructions: (raw.responsePlanSteps ?? raw.instructions) as string[] | undefined,
+    responsePlanSteps: (raw.responsePlanSteps ?? raw.instructions ?? []) as string[],
     zone: raw.zone as string | undefined,
     assemblyPointId: raw.assemblyPointId as string | undefined,
   };

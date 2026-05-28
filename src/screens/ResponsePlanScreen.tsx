@@ -52,8 +52,13 @@ const PLANS: Record<string, { title: string; steps: string[]; color: string }> =
 export default function ResponsePlanScreen() {
   const route = useRoute();
   const navigation = useNavigation<any>();
-  const incidentType = ((route.params as { incidentType?: string } | undefined)?.incidentType ?? 'lockdown') as keyof typeof PLANS;
-  const plan = PLANS[incidentType] ?? PLANS.lockdown;
+  const params = (route.params as { incidentType?: string; planSteps?: string[] } | undefined);
+  const incidentType = (params?.incidentType ?? 'lockdown') as keyof typeof PLANS;
+  const staticPlan = PLANS[incidentType] ?? PLANS.lockdown;
+  const dynamicSteps = params?.planSteps && params.planSteps.length > 0 ? params.planSteps : null;
+  const plan = dynamicSteps
+    ? { ...staticPlan, steps: dynamicSteps }
+    : staticPlan;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>

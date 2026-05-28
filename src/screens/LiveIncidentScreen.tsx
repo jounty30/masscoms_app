@@ -298,7 +298,9 @@ export default function LiveIncidentScreen() {
   }
 
   const incidentColor = INCIDENT_COLORS[incident.type] ?? colors.primary;
-  const planSteps = RESPONSE_PLANS[incident.type] ?? RESPONSE_PLANS.standby ?? [];
+  const planSteps = (incident.responsePlanSteps && incident.responsePlanSteps.length > 0)
+    ? incident.responsePlanSteps
+    : (RESPONSE_PLANS[incident.type] ?? RESPONSE_PLANS.standby ?? []);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>

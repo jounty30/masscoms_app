@@ -48,6 +48,7 @@ export interface Incident {
   activatedBy?: string;     // API alternate field name
   activatedByName?: string; // API alternate field name
   instructions?: string[];
+  responsePlanSteps?: string[];
   isDrill: boolean;
   status: 'active' | 'resolved';
   zone?: string;
