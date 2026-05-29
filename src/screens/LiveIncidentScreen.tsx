@@ -132,6 +132,9 @@ export default function LiveIncidentScreen() {
     enabled: !!orgId && !!id,
     refetchInterval: 30000,
     refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+    retry: false,
+    staleTime: 30000,
   });
 
   const { data: acknowledgments = [] } = useQuery({
@@ -142,6 +145,8 @@ export default function LiveIncidentScreen() {
 
   const nullGraceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const graceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastEventAtMountRef = useRef(lastEvent);
 
   const [selfAcked, setSelfAcked] = useState(false);
   const [acknowledgeError, setAcknowledgeError] = useState<string | null>(null);
@@ -217,9 +222,22 @@ export default function LiveIncidentScreen() {
     );
   };
 
-  // Immediate navigation when server signals incident resolved via WebSocket
+  // Block WS-driven navigation for the first 10 s after mount to prevent stale events from bouncing the screen.
   useEffect(() => {
-    if (lastEvent?.type === 'incident-resolved') {
+    graceRef.current = setTimeout(() => { graceRef.current = null; }, 10000);
+    return () => {
+      if (graceRef.current) { clearTimeout(graceRef.current); graceRef.current = null; }
+    };
+  }, []);
+
+  // Navigate home when server signals incident resolved — but only for events that arrived
+  // AFTER this screen mounted and only once the 10-second mount grace period has elapsed.
+  useEffect(() => {
+    if (
+      lastEvent !== lastEventAtMountRef.current &&
+      lastEvent?.type === 'incident-resolved' &&
+      graceRef.current === null
+    ) {
       navigation.replace('Home');
     }
   }, [lastEvent, navigation]);

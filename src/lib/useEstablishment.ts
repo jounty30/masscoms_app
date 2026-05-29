@@ -2,7 +2,7 @@
  * Read establishment config (sites, buildings, floors) via REST API.
  * Uses /maps/establishment which reads from Firestore server-side - no proxy needed.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getEstablishment, type Establishment as ApiEstablishment } from '../api/maps';
 
 export interface Floor {
@@ -58,8 +58,6 @@ export function useEstablishment(orgId: string | undefined) {
   const [establishment, setEstablishment] = useState<Establishment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const hasLogged = useRef(false);
-
   const fetchEstablishment = useCallback(async () => {
     if (!orgId) {
       setEstablishment(null);
@@ -71,11 +69,6 @@ export function useEstablishment(orgId: string | undefined) {
     try {
       const api = await getEstablishment();
       const est = toEstablishment(api);
-      if (__DEV__ && est && !hasLogged.current) {
-        hasLogged.current = true;
-        console.log('[Establishment]', est.name, 'sites:', est.sites.length,
-          est.sites.map((s) => `${s.name} (${s.buildings.length} buildings)`).join(', '));
-      }
       setEstablishment(est);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load establishment');

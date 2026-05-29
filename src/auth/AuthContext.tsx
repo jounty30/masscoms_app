@@ -119,12 +119,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginAsDev = useCallback(async (email: string) => {
     isDevFallbackRef.current = true;
+    // Prefer reusing a stored token from a previous real login — gives us a valid
+    // session with real orgId/userId that will work against the actual API.
+    const token = await getStoredToken();
+    if (token) {
+      try {
+        const me = await getMe();
+        isDevFallbackRef.current = false;
+        setUser(toUser(me));
+        setIsLoading(false);
+        return;
+      } catch {
+        // Stored token is expired or invalid — fall through to stub user
+      }
+    }
     setUser(toUser({
-      id: 'dev-simulator-user',
+      id: `dev-${email.replace(/[^a-z0-9]/gi, '-')}`,
       email,
       name: email.split('@')[0] || 'Dev User',
       role: 'safety-officer' as UserRole,
-      orgId: 'masscoms-org',
+      orgId: process.env.EXPO_PUBLIC_DEV_ORG_ID ?? 'masscoms-org',
     }));
     setIsLoading(false);
   }, []);

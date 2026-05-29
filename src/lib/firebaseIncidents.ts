@@ -67,7 +67,9 @@ export function subscribeToActiveIncident(
   fetchActiveIncident().then(onIncident).catch(() => onIncident(null));
 
   const handleActivated = () => {
-    fetchActiveIncident().then(onIncident).catch(() => onIncident(null));
+    // Do NOT call onIncident(null) on failure — a network hiccup on reconnect must not
+    // wipe the active incident from state. Only incident:resolved clears it.
+    fetchActiveIncident().then(onIncident).catch(() => {});
   };
 
   const handleResolved = () => {
